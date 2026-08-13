@@ -1,0 +1,74 @@
+# MiniMax Video Generation Query API (Django)
+
+用 Django 封装 MiniMax V2 视频任务查询接口，接口路径、HTTP method、path 参数和响应结构与官方文档保持一致。
+
+## 启动
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python manage.py runserver
+```
+
+## 调用
+
+```bash
+curl -H "Authorization: Bearer $MINIMAX_API_KEY" \
+  http://127.0.0.1:8778/v2/query/video_generation/424010985738629
+```
+
+本服务不会保存 API Key。它会把 `Authorization` 请求头透传给 MiniMax，并将上游 JSON 按 OpenAPI schema 拆解、白名单过滤后重新装载。上游 HTTP 状态码保持不变。
+
+`task_type` 为 `generation` 或 `regeneration` 的视频任务在非 `succeeded` 状态时，若上游返回 `usage.input_image_count`，本接口会保留 `usage`，但其中只返回 `input_image_count`。成功视频任务返回完整 `usage`；`h3_context_ir` 文本任务不返回 `usage`。对于包含 `2K` 或 `768P` 分辨率的成功视频任务，`task.usage` 会增加人民币元计价的 `pre_discount_billing`：
+
+```text
+视频费用 = total_seconds × 分辨率单价（2K：0.80 元/秒；768P：0.50 元/秒）
+图片费用 = max(input_image_count - 5, 0) × 0.20 元/张
+pre_discount_billing = 视频费用 + 图片费用
+```
+
+H3-Context-IR：
+
+```text
+pre_discount_billing = prompt_tokens × 5.80 / 1,000,000
+                     + completion_tokens × 23.00 / 1,000,000
+```
+
+视频再生成：
+
+```text
+pre_discount_billing = output_seconds × 0.30
+                     + input_seconds × 0.30
+                     + max(input_image_count - 5, 0) × 0.15
+```
+
+可选环境变量：
+
+- `MINIMAX_API_BASE_URL`：默认 `https://api.minimaxi.com`
+- `MINIMAX_API_TIMEOUT`：上游请求超时秒数，默认 `30`
+- `DJANGO_SECRET_KEY`、`DJANGO_DEBUG`、`DJANGO_ALLOWED_HOSTS`：标准部署配置
+
+## 测试
+
+```bash
+python manage.py test
+```
+
+## Docker
+
+构建镜像：
+
+```bash
+docker buildx build --platform linux/amd64 --load -t minimax-video-query-api .
+```
+
+启动容器：
+
+```bash
+docker run --rm -p 8778:8778 \
+  -e DJANGO_SECRET_KEY="replace-with-a-random-secret" \
+  minimax-video-query-api
+```
+
+接口调用时，MiniMax API Key 仍通过请求的 `Authorization` header 传入，不需要放进镜像或容器环境变量。
