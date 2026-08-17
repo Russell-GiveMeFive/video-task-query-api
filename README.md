@@ -1,6 +1,6 @@
-# MiniMax Video Generation Query API (Django)
+# MiniMax Video Generation V2 API (Django)
 
-用 Django 封装 MiniMax V2 视频任务查询接口，接口路径、HTTP method、path 参数和响应结构与官方文档保持一致。
+用 Django 封装 MiniMax V2 视频任务创建与查询接口，接口路径、HTTP method、输入和响应结构与官方文档保持一致。
 
 ## 启动
 
@@ -13,12 +13,30 @@ python manage.py runserver
 
 ## 调用
 
+创建视频生成任务：
+
+```bash
+curl --request POST \
+  --url http://127.0.0.1:8778/v2/video_generation \
+  --header "Authorization: Bearer $MINIMAX_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "model": "MiniMax-H3",
+    "content": [{"type": "text", "text": "一个男孩在海边打篮球"}],
+    "resolution": "2K",
+    "duration": 5,
+    "ratio": "16:9"
+  }'
+```
+
+查询视频生成任务：
+
 ```bash
 curl -H "Authorization: Bearer $MINIMAX_API_KEY" \
   http://127.0.0.1:8778/v2/query/video_generation/424010985738629
 ```
 
-本服务不会保存 API Key。它会把 `Authorization` 请求头透传给 MiniMax，并将上游 JSON 按 OpenAPI schema 拆解、白名单过滤后重新装载。上游 HTTP 状态码保持不变。
+本服务不会保存 API Key。它会把 `Authorization` 请求头透传给 MiniMax。创建接口将请求 JSON 原样转发，并原样保留上游 JSON 字段和 HTTP 状态码；查询接口会将上游 JSON 按 OpenAPI schema 拆解、白名单过滤后重新装载。
 
 `task_type` 为 `generation` 或 `regeneration` 的视频任务在非 `succeeded` 状态时，若上游返回 `usage.input_image_count`，本接口会保留 `usage`，但其中只返回 `input_image_count`。成功视频任务返回完整 `usage`；`h3_context_ir` 文本任务不返回 `usage`。对于包含 `2K` 或 `768P` 分辨率的成功视频任务，`task.usage` 会增加人民币元计价的 `pre_discount_billing`：
 

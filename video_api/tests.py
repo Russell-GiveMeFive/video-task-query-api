@@ -2,7 +2,95 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
-from .services import UpstreamResponse
+from .services import UpstreamResponse, create_video_task
+
+
+class CreateVideoTaskServiceTests(SimpleTestCase):
+    @patch("video_api.services.urlopen")
+    def test_posts_raw_json_to_documented_upstream_url(self, urlopen):
+        response = urlopen.return_value.__enter__.return_value
+        response.status = 200
+        response.read.return_value = b'{"task_id":"424010985738629"}'
+        body = b'{"model":"MiniMax-H3"}'
+
+        result = create_video_task(body, "Bearer test-key")
+
+        self.assertEqual(result.data, {"task_id": "424010985738629"})
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.full_url, "https://api.minimaxi.com/v2/video_generation")
+        self.assertEqual(request.method, "POST")
+        self.assertEqual(request.data, body)
+        self.assertEqual(request.get_header("Authorization"), "Bearer test-key")
+        self.assertEqual(request.get_header("Content-type"), "application/json")
+
+
+class CreateVideoGenerationTests(SimpleTestCase):
+    path = "/v2/video_generation"
+
+    def test_requires_bearer_auth(self):
+        response = self.client.post(
+            self.path,
+            data={"model": "MiniMax-H3"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["error"]["http_code"], "401")
+
+    def test_requires_application_json(self):
+        response = self.client.post(
+            self.path,
+            data="not-json",
+            content_type="text/plain",
+            HTTP_AUTHORIZATION="Bearer test-key",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"]["type"], "bad_request_error")
+
+    @patch("video_api.views.create_video_task")
+    def test_forwards_request_body_and_returns_documented_response(self, create):
+        create.return_value = UpstreamResponse(200, {"task_id": "424010985738629"})
+        body = (
+            b'{"model":"MiniMax-H3","content":[{"type":"text",'
+            b'"text":"a boy plays basketball by the sea"}],"resolution":"2K",'
+            b'"duration":5,"ratio":"16:9"}'
+        )
+
+        response = self.client.post(
+            self.path,
+            data=body,
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Bearer test-key",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"task_id": "424010985738629"})
+        self.assertNotIn(b'": ', response.content)
+        create.assert_called_once_with(body, "Bearer test-key")
+
+    @patch("video_api.views.create_video_task")
+    def test_preserves_upstream_error_status_and_body(self, create):
+        error = {
+            "type": "error",
+            "error": {
+                "type": "rate_limit_error",
+                "message": "rate limit, please retry later (1002)",
+                "http_code": "429",
+            },
+            "request_id": "request-1",
+        }
+        create.return_value = UpstreamResponse(429, error)
+
+        response = self.client.post(
+            self.path,
+            data=b"{}",
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Bearer test-key",
+        )
+
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.json(), error)
 
 
 class QueryVideoGenerationTests(SimpleTestCase):

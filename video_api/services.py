@@ -35,9 +35,30 @@ def query_video_task(task_id: str, authorization: str) -> UpstreamResponse:
         raise UpstreamUnavailable(str(exc)) from exc
 
 
+def create_video_task(body: bytes, authorization: str) -> UpstreamResponse:
+    url = f"{settings.MINIMAX_API_BASE_URL}/v2/video_generation"
+    request = Request(
+        url,
+        data=body,
+        headers={
+            "Authorization": authorization,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(request, timeout=settings.MINIMAX_API_TIMEOUT) as response:
+            return UpstreamResponse(response.status, _decode_json(response.read()))
+    except HTTPError as exc:
+        return UpstreamResponse(exc.code, _decode_json(exc.read()))
+    except (URLError, TimeoutError, OSError) as exc:
+        raise UpstreamUnavailable(str(exc)) from exc
+
+
 def _decode_json(body: bytes) -> object:
     try:
         return json.loads(body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise UpstreamUnavailable("MiniMax returned a non-JSON response") from exc
-
