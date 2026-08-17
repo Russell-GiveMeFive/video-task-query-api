@@ -16,15 +16,6 @@ TASK_FIELDS = (
 )
 CONTENT_FIELDS = ("url", "prompt")
 TASK_ERROR_FIELDS = ("code", "message")
-USAGE_FIELDS = (
-    "total_seconds",
-    "input_seconds",
-    "output_seconds",
-    "input_image_count",
-    "total_tokens",
-    "prompt_tokens",
-    "completion_tokens",
-)
 OAI_ERROR_FIELDS = ("type", "message", "http_code")
 VIDEO_TASK_TYPES = ("generation", "regeneration")
 VIDEO_PRICES_PER_SECOND = {
@@ -58,21 +49,17 @@ def rebuild_task(source: dict) -> dict:
     task_type = source.get("task_type")
     is_video_task = task_type in VIDEO_TASK_TYPES
     if is_video_task and isinstance(source_usage, dict):
+        result["usage"] = dict(source_usage)
         if source.get("status") == "succeeded":
-            result["usage"] = _pick(source_usage, USAGE_FIELDS)
             billing = calculate_pre_discount_billing(source, result["usage"])
             if billing is not None:
                 result["usage"]["pre_discount_billing"] = billing
-        elif "input_image_count" in source_usage:
-            result["usage"] = {
-                "input_image_count": source_usage["input_image_count"]
-            }
     elif (
         task_type == "h3_context_ir"
         and source.get("status") == "succeeded"
         and isinstance(source_usage, dict)
     ):
-        result["usage"] = _pick(source_usage, USAGE_FIELDS)
+        result["usage"] = dict(source_usage)
         billing = calculate_context_ir_billing(result["usage"])
         if billing is not None:
             result["usage"]["pre_discount_billing"] = billing

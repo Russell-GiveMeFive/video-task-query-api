@@ -202,6 +202,53 @@ class QueryVideoGenerationTests(SimpleTestCase):
         )
 
     @patch("video_api.views.query_video_task")
+    def test_preserves_all_upstream_usage_fields_and_adds_billing(self, query):
+        query.return_value = UpstreamResponse(
+            200,
+            {
+                "task": {
+                    "id": "431702145348008",
+                    "model": "MiniMax-H3",
+                    "status": "succeeded",
+                    "created_at": 1786950279,
+                    "updated_at": 1786950681,
+                    "content": {"url": "https://example.com/output_aigc.mp4"},
+                    "resolution": "2K",
+                    "duration": 5,
+                    "usage": {
+                        "total_seconds": 11,
+                        "input_seconds": 6,
+                        "output_seconds": 5,
+                        "input_image_count": 0,
+                        "total_tokens": 573578,
+                        "prompt_tokens": 313188,
+                        "completion_tokens": 260390,
+                        "input_audio_seconds": 9,
+                    },
+                    "ratio": "adaptive",
+                    "task_type": "generation",
+                }
+            },
+        )
+
+        response = self.client.get(self.path, HTTP_AUTHORIZATION="Bearer test-key")
+
+        self.assertEqual(
+            response.json()["task"]["usage"],
+            {
+                "total_seconds": 11,
+                "input_seconds": 6,
+                "output_seconds": 5,
+                "input_image_count": 0,
+                "total_tokens": 573578,
+                "prompt_tokens": 313188,
+                "completion_tokens": 260390,
+                "input_audio_seconds": 9,
+                "pre_discount_billing": 8.8,
+            },
+        )
+
+    @patch("video_api.views.query_video_task")
     def test_bills_succeeded_h3_context_ir_tokens(self, query):
         query.return_value = UpstreamResponse(
             200,
@@ -263,7 +310,7 @@ class QueryVideoGenerationTests(SimpleTestCase):
         )
 
     @patch("video_api.views.query_video_task")
-    def test_non_succeeded_video_only_returns_input_image_count(self, query):
+    def test_non_succeeded_video_preserves_full_usage(self, query):
         query.return_value = UpstreamResponse(
             200,
             {
@@ -290,11 +337,16 @@ class QueryVideoGenerationTests(SimpleTestCase):
 
         self.assertEqual(
             response.json()["task"]["usage"],
-            {"input_image_count": 0},
+            {
+                "total_seconds": 0,
+                "input_seconds": 0,
+                "output_seconds": 0,
+                "input_image_count": 0,
+            },
         )
 
     @patch("video_api.views.query_video_task")
-    def test_running_video_only_returns_input_image_count(self, query):
+    def test_running_video_preserves_full_usage(self, query):
         query.return_value = UpstreamResponse(
             200,
             {
@@ -314,7 +366,7 @@ class QueryVideoGenerationTests(SimpleTestCase):
 
         self.assertEqual(
             response.json()["task"]["usage"],
-            {"input_image_count": 1},
+            {"total_seconds": 3, "input_image_count": 1},
         )
 
     @patch("video_api.views.query_video_task")
