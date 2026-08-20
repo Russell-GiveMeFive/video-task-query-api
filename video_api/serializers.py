@@ -28,6 +28,9 @@ REGENERATION_SECOND_PRICE = Decimal("0.30")
 REGENERATION_IMAGE_PRICE = Decimal("0.15")
 CONTEXT_IR_PROMPT_TOKEN_PRICE = Decimal("5.80") / Decimal("1000000")
 CONTEXT_IR_COMPLETION_TOKEN_PRICE = Decimal("23.00") / Decimal("1000000")
+DISCOUNT_RATE = Decimal("0.8")
+VIDEO_BILLING_QUANTUM = Decimal("0.01")
+CONTEXT_IR_BILLING_QUANTUM = Decimal("0.000001")
 
 
 def rebuild_response(payload: object) -> dict:
@@ -54,6 +57,9 @@ def rebuild_task(source: dict) -> dict:
             billing = calculate_pre_discount_billing(source, result["usage"])
             if billing is not None:
                 result["usage"]["pre_discount_billing"] = billing
+                result["usage"]["after_discount_billing"] = (
+                    calculate_after_discount_billing(billing, VIDEO_BILLING_QUANTUM)
+                )
     elif (
         task_type == "h3_context_ir"
         and source.get("status") == "succeeded"
@@ -63,7 +69,18 @@ def rebuild_task(source: dict) -> dict:
         billing = calculate_context_ir_billing(result["usage"])
         if billing is not None:
             result["usage"]["pre_discount_billing"] = billing
+            result["usage"]["after_discount_billing"] = (
+                calculate_after_discount_billing(
+                    billing,
+                    CONTEXT_IR_BILLING_QUANTUM,
+                )
+            )
     return result
+
+
+def calculate_after_discount_billing(billing: float, quantum: Decimal) -> float:
+    amount = Decimal(str(billing)) * DISCOUNT_RATE
+    return float(amount.quantize(quantum))
 
 
 def calculate_pre_discount_billing(task: dict, usage: dict) -> Optional[float]:

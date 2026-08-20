@@ -44,6 +44,7 @@ curl -H "Authorization: Bearer $MINIMAX_API_KEY" \
 视频费用 = total_seconds × 分辨率单价（2K：0.80 元/秒；768P：0.50 元/秒）
 图片费用 = max(input_image_count - 5, 0) × 0.20 元/张
 pre_discount_billing = 视频费用 + 图片费用
+after_discount_billing = pre_discount_billing × 0.8（保留 2 位小数）
 ```
 
 H3-Context-IR：
@@ -51,6 +52,7 @@ H3-Context-IR：
 ```text
 pre_discount_billing = prompt_tokens × 5.80 / 1,000,000
                      + completion_tokens × 23.00 / 1,000,000
+after_discount_billing = pre_discount_billing × 0.8（保留 6 位小数）
 ```
 
 视频再生成：
@@ -59,6 +61,7 @@ pre_discount_billing = prompt_tokens × 5.80 / 1,000,000
 pre_discount_billing = output_seconds × 0.30
                      + input_seconds × 0.30
                      + max(input_image_count - 5, 0) × 0.15
+after_discount_billing = pre_discount_billing × 0.8（保留 2 位小数）
 ```
 
 可选环境变量：

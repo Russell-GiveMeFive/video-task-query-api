@@ -165,6 +165,7 @@ class QueryVideoGenerationTests(SimpleTestCase):
 
         # 10 秒 × 0.50 元 + (8 - 5) 张 × 0.20 元 = 5.60 元；duration 不参与计算。
         self.assertEqual(response.json()["task"]["usage"]["pre_discount_billing"], 5.6)
+        self.assertEqual(response.json()["task"]["usage"]["after_discount_billing"], 4.48)
 
     @patch("video_api.views.query_video_task")
     def test_succeeded_generation_without_modality_returns_full_usage(self, query):
@@ -198,6 +199,7 @@ class QueryVideoGenerationTests(SimpleTestCase):
                 "output_seconds": 12,
                 "input_image_count": 0,
                 "pre_discount_billing": 9.6,
+                "after_discount_billing": 7.68,
             },
         )
 
@@ -245,6 +247,7 @@ class QueryVideoGenerationTests(SimpleTestCase):
                 "completion_tokens": 260390,
                 "input_audio_seconds": 9,
                 "pre_discount_billing": 8.8,
+                "after_discount_billing": 7.04,
             },
         )
 
@@ -277,6 +280,7 @@ class QueryVideoGenerationTests(SimpleTestCase):
                 "prompt_tokens": 600000,
                 "completion_tokens": 400000,
                 "pre_discount_billing": 12.68,
+                "after_discount_billing": 10.144,
             },
         )
 
@@ -307,6 +311,10 @@ class QueryVideoGenerationTests(SimpleTestCase):
         self.assertEqual(
             response.json()["task"]["usage"]["pre_discount_billing"],
             5.7,
+        )
+        self.assertEqual(
+            response.json()["task"]["usage"]["after_discount_billing"],
+            4.56,
         )
 
     @patch("video_api.views.query_video_task")
