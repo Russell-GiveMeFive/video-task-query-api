@@ -168,6 +168,53 @@ class QueryVideoGenerationTests(SimpleTestCase):
         self.assertEqual(response.json()["task"]["usage"]["after_discount_billing"], 4.48)
 
     @patch("video_api.views.query_video_task")
+    def test_bills_h3_fast_480p_input_output_seconds_and_reference_images(self, query):
+        query.return_value = UpstreamResponse(
+            200,
+            {
+                "task": {
+                    "id": "task-fast",
+                    "model": "MiniMax-H3-Fast",
+                    "status": "succeeded",
+                    "resolution": "480P",
+                    "usage": {
+                        "total_seconds": 99,
+                        "input_seconds": 8,
+                        "output_seconds": 10,
+                        "input_image_count": 7,
+                    },
+                    "task_type": "generation",
+                }
+            },
+        )
+
+        response = self.client.get(self.path, HTTP_AUTHORIZATION="Bearer test-key")
+
+        # 输入 8 秒 + 输出 10 秒均按 0.30 元/秒，超出免费额度 2 张图按 0.20 元/张。
+        self.assertEqual(response.json()["task"]["usage"]["pre_discount_billing"], 5.8)
+        self.assertEqual(response.json()["task"]["usage"]["after_discount_billing"], 4.64)
+
+    @patch("video_api.views.query_video_task")
+    def test_h3_fast_only_bills_480p(self, query):
+        query.return_value = UpstreamResponse(
+            200,
+            {
+                "task": {
+                    "id": "task-fast-768p",
+                    "model": "MiniMax-H3-Fast",
+                    "status": "succeeded",
+                    "resolution": "768P",
+                    "usage": {"input_seconds": 1, "output_seconds": 2, "input_image_count": 6},
+                    "task_type": "generation",
+                }
+            },
+        )
+
+        response = self.client.get(self.path, HTTP_AUTHORIZATION="Bearer test-key")
+
+        self.assertNotIn("pre_discount_billing", response.json()["task"]["usage"])
+
+    @patch("video_api.views.query_video_task")
     def test_succeeded_generation_without_modality_returns_full_usage(self, query):
         query.return_value = UpstreamResponse(
             200,
