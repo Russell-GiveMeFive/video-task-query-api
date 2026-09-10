@@ -58,6 +58,16 @@ pre_discount_billing = output_seconds × 0.30
 after_discount_billing = pre_discount_billing × 0.8（保留 2 位小数）
 ```
 
+MiniMax-H3-Max 支持 `480P` 和 `768P`：
+
+```text
+视频费用 = (output_seconds + input_seconds) × 分辨率输出刊例价
+           （480P：0.33 元/秒；768P：0.50 元/秒）
+图片费用 = max(input_image_count - 5, 0) × 0.20 元/张
+pre_discount_billing = 视频费用 + 图片费用
+after_discount_billing = pre_discount_billing × 0.8（保留 2 位小数）
+```
+
 H3-Context-IR：
 
 ```text

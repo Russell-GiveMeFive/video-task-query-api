@@ -215,6 +215,78 @@ class QueryVideoGenerationTests(SimpleTestCase):
         self.assertNotIn("pre_discount_billing", response.json()["task"]["usage"])
 
     @patch("video_api.views.query_video_task")
+    def test_bills_h3_max_480p_output_input_video_and_extra_images(self, query):
+        query.return_value = UpstreamResponse(
+            200,
+            {
+                "task": {
+                    "id": "task-max-480p",
+                    "model": "MiniMax-H3-Max",
+                    "status": "succeeded",
+                    "resolution": "480P",
+                    "usage": {
+                        "total_seconds": 999,
+                        "input_seconds": 8,
+                        "output_seconds": 10,
+                        "input_image_count": 7,
+                    },
+                    "task_type": "generation",
+                }
+            },
+        )
+
+        response = self.client.get(self.path, HTTP_AUTHORIZATION="Bearer test-key")
+
+        # 输入/输出共 18 秒 × 0.33 元 + 超出免费额度 2 张图 × 0.20 元 = 6.34 元。
+        self.assertEqual(response.json()["task"]["usage"]["pre_discount_billing"], 6.34)
+        self.assertEqual(response.json()["task"]["usage"]["after_discount_billing"], 5.07)
+
+    @patch("video_api.views.query_video_task")
+    def test_bills_h3_max_768p_with_free_images(self, query):
+        query.return_value = UpstreamResponse(
+            200,
+            {
+                "task": {
+                    "id": "task-max-768p",
+                    "model": "MiniMax-H3-Max",
+                    "status": "succeeded",
+                    "resolution": "768P",
+                    "usage": {
+                        "input_seconds": 4,
+                        "output_seconds": 6,
+                        "input_image_count": 5,
+                    },
+                    "task_type": "generation",
+                }
+            },
+        )
+
+        response = self.client.get(self.path, HTTP_AUTHORIZATION="Bearer test-key")
+
+        self.assertEqual(response.json()["task"]["usage"]["pre_discount_billing"], 5.0)
+        self.assertEqual(response.json()["task"]["usage"]["after_discount_billing"], 4.0)
+
+    @patch("video_api.views.query_video_task")
+    def test_h3_max_only_bills_supported_resolutions(self, query):
+        query.return_value = UpstreamResponse(
+            200,
+            {
+                "task": {
+                    "id": "task-max-2k",
+                    "model": "MiniMax-H3-Max",
+                    "status": "succeeded",
+                    "resolution": "2K",
+                    "usage": {"input_seconds": 1, "output_seconds": 2, "input_image_count": 6},
+                    "task_type": "generation",
+                }
+            },
+        )
+
+        response = self.client.get(self.path, HTTP_AUTHORIZATION="Bearer test-key")
+
+        self.assertNotIn("pre_discount_billing", response.json()["task"]["usage"])
+
+    @patch("video_api.views.query_video_task")
     def test_succeeded_generation_without_modality_returns_full_usage(self, query):
         query.return_value = UpstreamResponse(
             200,

@@ -27,6 +27,11 @@ IMAGE_PRICE = Decimal("0.20")
 FAST_MODEL = "MiniMax-H3-Fast"
 FAST_RESOLUTION = "480P"
 FAST_SECOND_PRICE = Decimal("0.30")
+MAX_MODEL = "MiniMax-H3-Max"
+MAX_VIDEO_PRICES_PER_SECOND = {
+    "480P": Decimal("0.33"),
+    "768P": Decimal("0.50"),
+}
 REGENERATION_SECOND_PRICE = Decimal("0.30")
 REGENERATION_IMAGE_PRICE = Decimal("0.15")
 CONTEXT_IR_PROMPT_TOKEN_PRICE = Decimal("5.80") / Decimal("1000000")
@@ -94,6 +99,14 @@ def calculate_pre_discount_billing(task: dict, usage: dict) -> Optional[float]:
             return None
         return calculate_fast_billing(usage)
 
+    if model == MAX_MODEL:
+        if task.get("task_type") not in VIDEO_TASK_TYPES:
+            return None
+        price_per_second = MAX_VIDEO_PRICES_PER_SECOND.get(task.get("resolution"))
+        if price_per_second is None:
+            return None
+        return calculate_max_billing(usage, price_per_second)
+
     if model != "MiniMax-H3":
         return None
     if task.get("task_type") == "regeneration":
@@ -138,6 +151,26 @@ def calculate_fast_billing(usage: dict) -> Optional[float]:
     billable_image_count = max(input_image_count - FREE_IMAGE_COUNT, 0)
     amount = (
         (input_seconds + output_seconds) * FAST_SECOND_PRICE
+        + Decimal(billable_image_count) * IMAGE_PRICE
+    )
+    return float(amount.quantize(Decimal("0.01")))
+
+
+def calculate_max_billing(usage: dict, price_per_second: Decimal) -> Optional[float]:
+    """计算 MiniMax-H3-Max 视频任务费用。"""
+    try:
+        input_seconds = Decimal(str(usage.get("input_seconds", 0)))
+        output_seconds = Decimal(str(usage.get("output_seconds", 0)))
+        input_image_count = int(usage.get("input_image_count", 0))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+    if input_seconds < 0 or output_seconds < 0 or input_image_count < 0:
+        return None
+
+    billable_image_count = max(input_image_count - FREE_IMAGE_COUNT, 0)
+    amount = (
+        (input_seconds + output_seconds) * price_per_second
         + Decimal(billable_image_count) * IMAGE_PRICE
     )
     return float(amount.quantize(Decimal("0.01")))
