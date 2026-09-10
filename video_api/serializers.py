@@ -24,6 +24,9 @@ VIDEO_PRICES_PER_SECOND = {
 }
 FREE_IMAGE_COUNT = 5
 IMAGE_PRICE = Decimal("0.20")
+FAST_MODEL = "MiniMax-H3-Fast"
+FAST_RESOLUTION = "480P"
+FAST_SECOND_PRICE = Decimal("0.30")
 REGENERATION_SECOND_PRICE = Decimal("0.30")
 REGENERATION_IMAGE_PRICE = Decimal("0.15")
 CONTEXT_IR_PROMPT_TOKEN_PRICE = Decimal("5.80") / Decimal("1000000")
@@ -85,7 +88,13 @@ def calculate_after_discount_billing(billing: float, quantum: Decimal) -> float:
 
 def calculate_pre_discount_billing(task: dict, usage: dict) -> Optional[float]:
     """按任务类型计算视频任务折扣前费用，单位为人民币元。"""
-    if task.get("model") != "MiniMax-H3":
+    model = task.get("model")
+    if model == FAST_MODEL:
+        if task.get("task_type") != "generation" or task.get("resolution") != FAST_RESOLUTION:
+            return None
+        return calculate_fast_billing(usage)
+
+    if model != "MiniMax-H3":
         return None
     if task.get("task_type") == "regeneration":
         return calculate_regeneration_billing(usage)
@@ -109,6 +118,26 @@ def calculate_pre_discount_billing(task: dict, usage: dict) -> Optional[float]:
     billable_image_count = max(input_image_count - FREE_IMAGE_COUNT, 0)
     amount = (
         total_seconds * price_per_second
+        + Decimal(billable_image_count) * IMAGE_PRICE
+    )
+    return float(amount.quantize(Decimal("0.01")))
+
+
+def calculate_fast_billing(usage: dict) -> Optional[float]:
+    """计算 MiniMax-H3-Fast（480P）视频任务费用。"""
+    try:
+        input_seconds = Decimal(str(usage.get("input_seconds", 0)))
+        output_seconds = Decimal(str(usage.get("output_seconds", 0)))
+        input_image_count = int(usage.get("input_image_count", 0))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+    if input_seconds < 0 or output_seconds < 0 or input_image_count < 0:
+        return None
+
+    billable_image_count = max(input_image_count - FREE_IMAGE_COUNT, 0)
+    amount = (
+        (input_seconds + output_seconds) * FAST_SECOND_PRICE
         + Decimal(billable_image_count) * IMAGE_PRICE
     )
     return float(amount.quantize(Decimal("0.01")))

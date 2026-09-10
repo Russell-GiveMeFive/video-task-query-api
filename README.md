@@ -38,12 +38,23 @@ curl -H "Authorization: Bearer $MINIMAX_API_KEY" \
 
 本服务不会保存 API Key。它会把 `Authorization` 请求头透传给 MiniMax。创建接口将请求 JSON 原样转发，并原样保留上游 JSON 字段和 HTTP 状态码；查询接口会将上游 JSON 按 OpenAPI schema 拆解、白名单过滤后重新装载。
 
-接口会完整保留上游返回的所有 `usage` 字段，包括后续新增的模态用量字段。对于包含 `2K` 或 `768P` 分辨率的成功视频任务，`task.usage` 还会增加人民币元计价的 `pre_discount_billing`：
+接口会完整保留上游返回的所有 `usage` 字段，包括后续新增的模态用量字段。对于成功的视频任务，`task.usage` 还会增加人民币元计价的 `pre_discount_billing`。
+
+MiniMax-H3：
 
 ```text
 视频费用 = total_seconds × 分辨率单价（2K：0.80 元/秒；768P：0.50 元/秒）
 图片费用 = max(input_image_count - 5, 0) × 0.20 元/张
 pre_discount_billing = 视频费用 + 图片费用
+after_discount_billing = pre_discount_billing × 0.8（保留 2 位小数）
+```
+
+MiniMax-H3-Fast 仅支持 `480P` 计费：
+
+```text
+pre_discount_billing = output_seconds × 0.30
+                     + input_seconds × 0.30
+                     + max(input_image_count - 5, 0) × 0.20
 after_discount_billing = pre_discount_billing × 0.8（保留 2 位小数）
 ```
 
